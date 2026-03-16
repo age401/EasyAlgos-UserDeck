@@ -67,6 +67,20 @@
       background: var(--white);
     }
 
+    /* ── Annotation layer (PDF links) ── */
+    .annotation-layer {
+      position: absolute;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .annotation-layer a {
+      position: absolute;
+      pointer-events: auto;
+      cursor: pointer;
+      display: block;
+    }
+
     /* ── Side nav arrows (desktop) ── */
     .nav-arrow {
       position: absolute;
@@ -312,18 +326,25 @@
       font-weight: 500;
     }
 
-    /* ── Touch hint overlay (mobile) ── */
+    /* ── Touch zones (prev/next tap areas, 25% each side) ── */
     .touch-zones {
       position: absolute;
       inset: 0;
       z-index: 5;
-      display: flex;
+      pointer-events: none;
     }
 
     .touch-zones .zone {
-      flex: 1;
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 25%;
       cursor: pointer;
+      pointer-events: auto;
     }
+
+    .touch-zones .zone[data-dir="prev"] { left: 0; }
+    .touch-zones .zone[data-dir="next"] { right: 0; }
 
     /* ── Mobile tap zone (bottom-right) ── */
     .mobile-tap-zone {
@@ -486,6 +507,7 @@
     <div class="slide-wrapper">
       <canvas id="slideCanvas"></canvas>
     </div>
+    <div class="annotation-layer" id="annotationLayer"></div>
 
     <div class="loading" id="loading">
       <div class="spinner"></div>
@@ -521,6 +543,7 @@
   const touchZones = document.getElementById('touchZones');
   const mobileTapZone = document.getElementById('mobileTapZone');
   const hintPill = document.getElementById('hintPill');
+  const annotationLayer = document.getElementById('annotationLayer');
 
   let pdfDoc = null;
   let currentPage = 1;
@@ -567,8 +590,44 @@
 
     await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
 
+    // Render link annotations
+    annotationLayer.innerHTML = '';
+    const cssW = scaledViewport.width / dpr;
+    const cssH = scaledViewport.height / dpr;
+    annotationLayer.style.width = cssW + 'px';
+    annotationLayer.style.height = cssH + 'px';
+
+    // Position annotation layer to overlay the canvas exactly
+    const wrapper = canvas.parentElement;
+    const areaRect = slideArea.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    annotationLayer.style.left = (wrapperRect.left - areaRect.left) + 'px';
+    annotationLayer.style.top = (wrapperRect.top - areaRect.top) + 'px';
+
+    const displayViewport = page.getViewport({ scale: renderScale });
+    const annotations = await page.getAnnotations();
+    for (const ann of annotations) {
+      if (ann.subtype !== 'Link') continue;
+      const url = ann.url || (ann.unsafeUrl) || null;
+      if (!url) continue;
+      const rect = ann.rect; // [x1, y1, x2, y2] in PDF coords
+      const [x1, y1] = pdfjsLib.Util.applyTransform([rect[0], rect[1]], displayViewport.transform);
+      const [x2, y2] = pdfjsLib.Util.applyTransform([rect[2], rect[3]], displayViewport.transform);
+      const left = Math.min(x1, x2);
+      const top = Math.min(y1, y2);
+      const width = Math.abs(x2 - x1);
+      const height = Math.abs(y2 - y1);
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px;`;
+      annotationLayer.appendChild(a);
+    }
+
     if (fade) canvas.classList.remove('fading');
     canvas.style.transform = '';
+    annotationLayer.style.transform = '';
     zoomSpinner.classList.remove('active');
     rendering = false;
 
@@ -598,6 +657,7 @@
       // Reset zoom when navigating
       zoomLevel = 1; renderedZoom = 1; panX = 0; panY = 0;
       canvas.style.transform = '';
+      annotationLayer.style.transform = '';
       zoomSlider.value = 100; zoomLabel.textContent = '100%';
       zoomPopup.classList.remove('open');
       slideArea.classList.remove('zoomed');
@@ -639,7 +699,9 @@
   // ── Zoom ──
   function applyTransform() {
     // Canvas is rendered at renderedZoom. Only translate for panning.
-    canvas.style.transform = zoomLevel > 1 ? `translate(${panX}px, ${panY}px)` : '';
+    const t = zoomLevel > 1 ? `translate(${panX}px, ${panY}px)` : '';
+    canvas.style.transform = t;
+    annotationLayer.style.transform = t;
     slideArea.classList.toggle('zoomed', zoomLevel > 1);
   }
 
@@ -661,8 +723,11 @@
     zoomSlider.value = pct;
     zoomLabel.textContent = pct + '%';
     const cssScale = zoomLevel / renderedZoom;
-    canvas.style.transform = `scale(${cssScale})`;
+    const t = `scale(${cssScale})`;
+    canvas.style.transform = t;
     canvas.style.transformOrigin = 'center center';
+    annotationLayer.style.transform = t;
+    annotationLayer.style.transformOrigin = 'center center';
     slideArea.classList.toggle('zoomed', zoomLevel > 1);
   }
 
@@ -916,6 +981,7 @@
         zoomSlider.value = 100;
         zoomLabel.textContent = '100%';
         canvas.style.transform = '';
+        annotationLayer.style.transform = '';
         slideArea.classList.remove('zoomed');
         zoomSpinner.classList.add('active');
         renderPage(currentPage, false);
