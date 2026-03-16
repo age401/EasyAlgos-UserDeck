@@ -325,11 +325,43 @@
       cursor: pointer;
     }
 
+    /* ── Mobile tap zone (bottom-right) ── */
+    .mobile-tap-zone {
+      display: none;
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 80px;
+      height: 80px;
+      z-index: 8;
+    }
+
+    /* ── Hint pill ── */
+    .hint-pill {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 15;
+      background: var(--text-dark);
+      color: var(--white);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 500px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s;
+      white-space: nowrap;
+    }
+
+    .hint-pill.show { opacity: 0.85; }
+
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .nav-arrow { display: none; }
       .slide-area { padding: 8px; }
       .slide-wrapper { border-radius: 8px; }
+      .mobile-tap-zone { display: block; }
     }
 
     @media (max-width: 480px) {
@@ -445,6 +477,12 @@
       <div class="zone" data-dir="next"></div>
     </div>
 
+    <!-- Mobile tap zone to show UI -->
+    <div class="mobile-tap-zone" id="mobileTapZone"></div>
+
+    <!-- Hint pill -->
+    <div class="hint-pill" id="hintPill">Tap here for controls</div>
+
     <div class="slide-wrapper">
       <canvas id="slideCanvas"></canvas>
     </div>
@@ -481,6 +519,8 @@
   const zoomSpinner = document.getElementById('zoomSpinner');
   const viewer = document.getElementById('viewer');
   const touchZones = document.getElementById('touchZones');
+  const mobileTapZone = document.getElementById('mobileTapZone');
+  const hintPill = document.getElementById('hintPill');
 
   let pdfDoc = null;
   let currentPage = 1;
@@ -722,7 +762,7 @@
   }, { passive: true });
 
   slideArea.addEventListener('touchmove', (e) => {
-    if (!isPanning || touchPanId === null) return;
+    if (!isPanning || touchPanId === null || pinchActive) return;
     const t = [...e.changedTouches].find(t => t.identifier === touchPanId);
     if (!t) return;
     panX = panOriginX + (t.clientX - panStartX);
@@ -799,6 +839,92 @@
     resizeTimer = setTimeout(() => renderPage(currentPage), 100);
   });
 
+  // ── Mobile tap zone ──
+  mobileTapZone.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showArrows();
+  });
+
+  // ── Hint pill ──
+  function showHintPill() {
+    // Only show on touch devices / small screens
+    if (window.innerWidth > 768) return;
+    setTimeout(() => {
+      hintPill.classList.add('show');
+      setTimeout(() => hintPill.classList.remove('show'), 3000);
+    }, 1500);
+  }
+
+  // ── Pinch-to-zoom ──
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
+  let pinchActive = false;
+  let lastPinchTime = 0;
+  let lastPinchDist = 0;
+
+  function getTouchDist(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  slideArea.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      // Cancel any single-finger pan
+      isPanning = false;
+      touchPanId = null;
+      slideArea.classList.remove('panning');
+
+      pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+      pinchStartZoom = zoomLevel;
+      pinchActive = true;
+      lastPinchDist = pinchStartDist;
+      lastPinchTime = performance.now();
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  slideArea.addEventListener('touchmove', (e) => {
+    if (!pinchActive || e.touches.length < 2) return;
+    e.preventDefault();
+
+    const dist = getTouchDist(e.touches[0], e.touches[1]);
+    const ratio = dist / pinchStartDist;
+    const newZoom = Math.max(1, Math.min(3, pinchStartZoom * ratio));
+    const pct = Math.round(newZoom * 100 / 10) * 10; // snap to 10%
+
+    // Track velocity for fast-out detection
+    lastPinchDist = dist;
+    lastPinchTime = performance.now();
+
+    previewZoom(Math.max(100, Math.min(300, pct)));
+  }, { passive: false });
+
+  slideArea.addEventListener('touchend', (e) => {
+    if (!pinchActive) return;
+    if (e.touches.length < 2) {
+      pinchActive = false;
+
+      // Fast pinch-out snap: if zooming out and close to 100%, snap
+      const now = performance.now();
+      const velocity = (lastPinchDist - pinchStartDist) / Math.max(1, now - lastPinchTime);
+      if (velocity < -0.8 && zoomLevel < 1.3) {
+        // Fast outward pinch near 100% — snap
+        zoomLevel = 1;
+        renderedZoom = 1;
+        panX = 0; panY = 0;
+        zoomSlider.value = 100;
+        zoomLabel.textContent = '100%';
+        canvas.style.transform = '';
+        slideArea.classList.remove('zoomed');
+        zoomSpinner.classList.add('active');
+        renderPage(currentPage, false);
+      } else {
+        commitZoom();
+      }
+    }
+  }, { passive: true });
+
   // Init
   async function init() {
     try {
@@ -806,6 +932,7 @@
       totalPages = pdfDoc.numPages;
       await renderPage(1);
       loading.classList.add('hidden');
+      showHintPill();
     } catch (err) {
       loading.querySelector('.loading-text').textContent = 'Failed to load PDF.';
       loading.querySelector('.spinner').style.display = 'none';
