@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EasyAlgos — Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --blue-start: #074cfb;
+      --blue-end: #205efb;
+      --blue-accent: #285ff7;
+      --text-dark: #141414;
+      --text-medium: #696969;
+      --bg: #f8f8fc;
+      --white: #ffffff;
+      --shadow-blue: rgba(63, 97, 235, 0.16);
+      --radius-pill: 500px;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Poppins', sans-serif;
+      background: var(--bg);
+      color: var(--text-dark);
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    /* ── Layout ── */
+    .viewer {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      width: 100vw;
+    }
+
+    /* ── Slide area ── */
+    .slide-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+      background: var(--bg);
+    }
+
+    .slide-wrapper {
+      position: relative;
+      max-width: 100%;
+      max-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide-wrapper canvas {
+      max-width: 100%;
+      max-height: 100%;
+      background: var(--white);
+    }
+
+    /* ── Side nav arrows (desktop) ── */
+    .nav-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: var(--white);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, box-shadow 0.2s, opacity 0.4s;
+      opacity: 0;
+      color: var(--text-dark);
+    }
+
+    .nav-arrow.visible { opacity: 0.8; }
+
+    .nav-arrow:hover {
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      box-shadow: 0 16px 20px var(--shadow-blue);
+      color: var(--white);
+      opacity: 1;
+    }
+
+    .nav-arrow:active { transform: translateY(-50%) scale(0.95); }
+    .nav-arrow:disabled { opacity: 0 !important; pointer-events: none; }
+
+    .nav-arrow.prev { left: 16px; }
+    .nav-arrow.next { right: 16px; }
+
+    .nav-arrow svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Fullscreen button ── */
+    .fs-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      z-index: 10;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: var(--white);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, box-shadow 0.2s, opacity 0.4s;
+      opacity: 0;
+      color: var(--text-dark);
+    }
+
+    .fs-btn.visible { opacity: 0.8; }
+
+    .fs-btn:hover {
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      box-shadow: 0 16px 20px var(--shadow-blue);
+      color: var(--white);
+      opacity: 1;
+    }
+
+    .fs-btn:active { transform: scale(0.95); }
+
+    .fs-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Zoom button + slider ── */
+    .zoom-group {
+      position: absolute;
+      bottom: 76px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.4s;
+      opacity: 0;
+    }
+
+    .zoom-group.visible { opacity: 0.8; }
+
+    .zoom-btn {
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: var(--white);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, box-shadow 0.2s;
+      color: var(--text-dark);
+    }
+
+    .zoom-btn:hover {
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      box-shadow: 0 16px 20px var(--shadow-blue);
+      color: var(--white);
+    }
+
+    .zoom-btn:active { transform: scale(0.95); }
+
+    .zoom-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .zoom-slider-popup {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      background: var(--white);
+      border-radius: 24px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      padding: 16px 10px;
+      width: 48px;
+    }
+
+    .zoom-slider-popup.open { display: flex; }
+
+    .zoom-slider-popup input[type="range"] {
+      writing-mode: vertical-lr;
+      direction: rtl;
+      appearance: none;
+      -webkit-appearance: none;
+      width: 4px;
+      height: 120px;
+      background: #e8e8f0;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .zoom-slider-popup input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      box-shadow: 0 2px 8px var(--shadow-blue);
+      cursor: pointer;
+    }
+
+    .zoom-slider-popup input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      box-shadow: 0 2px 8px var(--shadow-blue);
+      cursor: pointer;
+    }
+
+    .zoom-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-medium);
+      margin-top: 8px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .zoom-label:hover { color: var(--blue-accent); }
+
+    /* Pan cursor when zoomed */
+    .slide-area.zoomed { cursor: grab; }
+    .slide-area.zoomed.panning { cursor: grabbing; }
+    .slide-area.zoomed .touch-zones { pointer-events: none; }
+
+    /* Shadow & radius on wrapper so they don't scale with zoom */
+    .slide-wrapper {
+      overflow: hidden;
+      border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04);
+    }
+    .slide-area.zoomed .slide-wrapper canvas {
+      max-width: none;
+      max-height: none;
+    }
+
+    /* ── Zoom re-render spinner ── */
+    .zoom-spinner {
+      position: fixed;
+      top: calc(50% - 12px);
+      left: calc(50% - 12px);
+      z-index: 200;
+      width: 24px;
+      height: 24px;
+      border: 2.5px solid rgba(0, 0, 0, 0.06);
+      border-top-color: var(--blue-accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+
+    .zoom-spinner.active { opacity: 1; }
+
+    :fullscreen .zoom-spinner,
+    :-webkit-full-screen .zoom-spinner {
+      border-color: rgba(255, 255, 255, 0.1);
+      border-top-color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ── Loading ── */
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: var(--bg);
+      z-index: 100;
+      transition: opacity 0.3s;
+    }
+
+    .loading.hidden { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #e8e8f0;
+      border-top-color: var(--blue-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 14px;
+      color: var(--text-medium);
+      font-weight: 500;
+    }
+
+    /* ── Touch hint overlay (mobile) ── */
+    .touch-zones {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+    }
+
+    .touch-zones .zone {
+      flex: 1;
+      cursor: pointer;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .nav-arrow { display: none; }
+      .slide-area { padding: 8px; }
+      .slide-wrapper { border-radius: 8px; }
+    }
+
+    @media (max-width: 480px) {
+      .slide-area { padding: 4px; }
+      .slide-wrapper { border-radius: 6px; }
+    }
+
+    /* ── Fullscreen adjustments ── */
+    :fullscreen .viewer,
+    :-webkit-full-screen .viewer {
+      background: #000;
+    }
+
+    :fullscreen .slide-area,
+    :-webkit-full-screen .slide-area {
+      background: #000;
+      padding: 0;
+    }
+
+    :fullscreen .slide-wrapper,
+    :-webkit-full-screen .slide-wrapper {
+      border-radius: 0;
+      box-shadow: none;
+      max-width: none;
+      max-height: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    :fullscreen .nav-arrow,
+    :fullscreen .fs-btn,
+    :fullscreen .zoom-btn,
+    :-webkit-full-screen .nav-arrow,
+    :-webkit-full-screen .fs-btn,
+    :-webkit-full-screen .zoom-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+      box-shadow: none;
+    }
+
+    :fullscreen .nav-arrow:hover,
+    :fullscreen .fs-btn:hover,
+    :fullscreen .zoom-btn:hover,
+    :-webkit-full-screen .nav-arrow:hover,
+    :-webkit-full-screen .fs-btn:hover,
+    :-webkit-full-screen .zoom-btn:hover {
+      background: linear-gradient(180deg, var(--blue-start), var(--blue-end));
+      color: #fff;
+    }
+
+    :fullscreen .zoom-slider-popup,
+    :-webkit-full-screen .zoom-slider-popup {
+      background: rgba(30, 30, 30, 0.9);
+    }
+
+    :fullscreen .zoom-label,
+    :-webkit-full-screen .zoom-label {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* ── Slide transition ── */
+    .slide-wrapper canvas {
+      transition: opacity 0.15s ease;
+    }
+
+    .slide-wrapper canvas.fading {
+      opacity: 0.4;
+    }
+  </style>
+</head>
+<body>
+
+<div class="zoom-spinner" id="zoomSpinner"></div>
+<div class="viewer" id="viewer">
+  <div class="slide-area">
+    <!-- Side arrows (desktop) -->
+    <button class="nav-arrow prev" id="prevArrow" aria-label="Previous slide">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button class="nav-arrow next" id="nextArrow" aria-label="Next slide">
+      <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
+    </button>
+
+    <!-- Zoom button + slider -->
+    <div class="zoom-group" id="zoomGroup">
+      <div class="zoom-slider-popup" id="zoomPopup">
+        <input type="range" id="zoomSlider" min="100" max="300" value="100" step="10">
+        <div class="zoom-label" id="zoomLabel">100%</div>
+      </div>
+      <button class="zoom-btn" id="zoomBtn" aria-label="Zoom">
+        <svg viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="16.5" y1="16.5" x2="21" y2="21"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+          <line x1="11" y1="8" x2="11" y2="14"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Fullscreen button -->
+    <button class="fs-btn" id="fsBtn" aria-label="Toggle fullscreen">
+      <svg viewBox="0 0 24 24" id="fsIcon">
+        <polyline points="15 3 21 3 21 9"/>
+        <polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/>
+        <line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+    </button>
+
+    <!-- Touch zones (mobile) -->
+    <div class="touch-zones" id="touchZones">
+      <div class="zone" data-dir="prev"></div>
+      <div class="zone" data-dir="next"></div>
+    </div>
+
+    <div class="slide-wrapper">
+      <canvas id="slideCanvas"></canvas>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading presentation…</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs" type="module"></script>
+<script type="module">
+  import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.mjs';
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.mjs';
+
+  const PDF_PATH = 'EasyAlgos - User Deck.pdf';
+
+  const canvas = document.getElementById('slideCanvas');
+  const ctx = canvas.getContext('2d');
+  const loading = document.getElementById('loading');
+  const prevArrow = document.getElementById('prevArrow');
+  const nextArrow = document.getElementById('nextArrow');
+  const fsBtn = document.getElementById('fsBtn');
+  const fsIcon = document.getElementById('fsIcon');
+  const zoomGroup = document.getElementById('zoomGroup');
+  const zoomBtn = document.getElementById('zoomBtn');
+  const zoomPopup = document.getElementById('zoomPopup');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const slideArea = document.querySelector('.slide-area');
+  const zoomSpinner = document.getElementById('zoomSpinner');
+  const viewer = document.getElementById('viewer');
+  const touchZones = document.getElementById('touchZones');
+
+  let pdfDoc = null;
+  let currentPage = 1;
+  let totalPages = 0;
+  let rendering = false;
+  let pendingPage = null;
+  let pendingFade = true;
+
+  // Zoom & pan state
+  let zoomLevel = 1;
+  let baseScale = 1; // fit-to-container scale
+  let panX = 0, panY = 0;
+  let isPanning = false;
+  let panStartX = 0, panStartY = 0;
+  let panOriginX = 0, panOriginY = 0;
+
+  async function renderPage(num, fade = true) {
+    if (rendering) { pendingPage = num; pendingFade = fade; return; }
+    rendering = true;
+
+    if (fade) canvas.classList.add('fading');
+
+    const page = await pdfDoc.getPage(num);
+    const viewport = page.getViewport({ scale: 1 });
+
+    // Calculate base scale to fit the container
+    // Use slideArea dimensions (stable, not affected by canvas size)
+    const pad = parseFloat(getComputedStyle(slideArea).paddingLeft) || 0;
+    const containerW = slideArea.clientWidth - pad * 2;
+    const containerH = slideArea.clientHeight - pad * 2;
+    const scaleW = containerW / viewport.width;
+    const scaleH = containerH / viewport.height;
+    baseScale = Math.min(scaleW, scaleH);
+
+    // Render at base * zoom * dpr for crisp output at any zoom
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const renderScale = baseScale * zoomLevel;
+    const scaledViewport = page.getViewport({ scale: renderScale * dpr });
+
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    canvas.style.width = (scaledViewport.width / dpr) + 'px';
+    canvas.style.height = (scaledViewport.height / dpr) + 'px';
+
+    await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+
+    if (fade) canvas.classList.remove('fading');
+    canvas.style.transform = '';
+    zoomSpinner.classList.remove('active');
+    rendering = false;
+
+    currentPage = num;
+    applyTransform();
+    updateButtons();
+
+    if (pendingPage !== null) {
+      const p = pendingPage;
+      const f = pendingFade;
+      pendingPage = null;
+      pendingFade = true;
+      renderPage(p, f);
+    }
+  }
+
+  function updateButtons() {
+    const atFirst = currentPage <= 1;
+    const atLast = currentPage >= totalPages;
+    prevArrow.disabled = atFirst;
+    nextArrow.disabled = atLast;
+  }
+
+  function goTo(page) {
+    const p = Math.max(1, Math.min(totalPages, page));
+    if (p !== currentPage) {
+      // Reset zoom when navigating
+      zoomLevel = 1; renderedZoom = 1; panX = 0; panY = 0;
+      canvas.style.transform = '';
+      zoomSlider.value = 100; zoomLabel.textContent = '100%';
+      zoomPopup.classList.remove('open');
+      slideArea.classList.remove('zoomed');
+      renderPage(p, true);
+    }
+  }
+
+  function prev() { goTo(currentPage - 1); }
+  function next() { goTo(currentPage + 1); }
+
+  // Controls
+  prevArrow.addEventListener('click', prev);
+  nextArrow.addEventListener('click', next);
+
+  // Mouse idle fade for nav arrows
+  let idleTimer;
+  const IDLE_DELAY = 2500;
+
+  function showArrows() {
+    prevArrow.classList.add('visible');
+    nextArrow.classList.add('visible');
+    fsBtn.classList.add('visible');
+    zoomGroup.classList.add('visible');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(hideArrows, IDLE_DELAY);
+  }
+
+  function hideArrows() {
+    prevArrow.classList.remove('visible');
+    nextArrow.classList.remove('visible');
+    fsBtn.classList.remove('visible');
+    zoomGroup.classList.remove('visible');
+    zoomPopup.classList.remove('open');
+  }
+
+  document.addEventListener('mousemove', showArrows);
+  document.addEventListener('mousedown', showArrows);
+
+  // ── Zoom ──
+  function applyTransform() {
+    // Canvas is rendered at renderedZoom. Only translate for panning.
+    canvas.style.transform = zoomLevel > 1 ? `translate(${panX}px, ${panY}px)` : '';
+    slideArea.classList.toggle('zoomed', zoomLevel > 1);
+  }
+
+  function clampPan() {
+    if (zoomLevel <= 1) { panX = 0; panY = 0; return; }
+    const wrapper = canvas.parentElement;
+    const excessW = Math.max(0, canvas.offsetWidth - wrapper.clientWidth) / 2;
+    const excessH = Math.max(0, canvas.offsetHeight - wrapper.clientHeight) / 2;
+    panX = Math.max(-excessW, Math.min(excessW, panX));
+    panY = Math.max(-excessH, Math.min(excessH, panY));
+  }
+
+  // renderedZoom tracks the zoom level the canvas was last rendered at
+  let renderedZoom = 1;
+
+  function previewZoom(pct) {
+    // CSS-scale preview relative to the last rendered resolution
+    zoomLevel = pct / 100;
+    zoomSlider.value = pct;
+    zoomLabel.textContent = pct + '%';
+    const cssScale = zoomLevel / renderedZoom;
+    canvas.style.transform = `scale(${cssScale})`;
+    canvas.style.transformOrigin = 'center center';
+    slideArea.classList.toggle('zoomed', zoomLevel > 1);
+  }
+
+  function commitZoom() {
+    // Re-render at actual resolution, clear CSS scale
+    panX = 0; panY = 0;
+    renderedZoom = zoomLevel;
+    zoomSpinner.classList.add('active');
+    renderPage(currentPage, false);
+  }
+
+  function setZoom(pct) {
+    zoomLevel = pct / 100;
+    zoomSlider.value = pct;
+    zoomLabel.textContent = pct + '%';
+    panX = 0; panY = 0;
+    renderedZoom = zoomLevel;
+    renderPage(currentPage, false);
+  }
+
+  zoomBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    zoomPopup.classList.toggle('open');
+  });
+
+  // Close popup when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!zoomPopup.contains(e.target) && e.target !== zoomBtn && !zoomBtn.contains(e.target)) {
+      zoomPopup.classList.remove('open');
+    }
+  });
+
+  // Live CSS-scale preview while dragging
+  zoomSlider.addEventListener('input', (e) => {
+    e.stopPropagation();
+    previewZoom(Number(e.target.value));
+  });
+
+  // Re-render at full resolution on release
+  zoomSlider.addEventListener('change', (e) => {
+    e.stopPropagation();
+    zoomLevel = Number(e.target.value) / 100;
+    commitZoom();
+  });
+
+  // Click label to snap to 100%
+  zoomLabel.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panX = 0; panY = 0;
+    setZoom(100);
+  });
+
+  // Prevent idle-hide while interacting with slider
+  zoomPopup.addEventListener('mousemove', (e) => e.stopPropagation());
+  zoomPopup.addEventListener('mousedown', (e) => e.stopPropagation());
+
+  // ── Pan (mouse) ──
+  slideArea.addEventListener('mousedown', (e) => {
+    if (zoomLevel <= 1) return;
+    if (e.target.closest('.nav-arrow, .fs-btn, .zoom-group')) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    slideArea.classList.add('panning');
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    clampPan();
+    applyTransform();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isPanning) {
+      isPanning = false;
+      slideArea.classList.remove('panning');
+    }
+  });
+
+  // ── Pan (touch) ──
+  let touchPanId = null;
+  slideArea.addEventListener('touchstart', (e) => {
+    if (zoomLevel <= 1 || e.touches.length !== 1) return;
+    if (e.target.closest('.nav-arrow, .fs-btn, .zoom-group')) return;
+    touchPanId = e.touches[0].identifier;
+    panStartX = e.touches[0].clientX;
+    panStartY = e.touches[0].clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    isPanning = true;
+    slideArea.classList.add('panning');
+  }, { passive: true });
+
+  slideArea.addEventListener('touchmove', (e) => {
+    if (!isPanning || touchPanId === null) return;
+    const t = [...e.changedTouches].find(t => t.identifier === touchPanId);
+    if (!t) return;
+    panX = panOriginX + (t.clientX - panStartX);
+    panY = panOriginY + (t.clientY - panStartY);
+    clampPan();
+    applyTransform();
+    e.preventDefault();
+  }, { passive: false });
+
+  slideArea.addEventListener('touchend', (e) => {
+    const t = [...e.changedTouches].find(t => t.identifier === touchPanId);
+    if (t) { isPanning = false; touchPanId = null; slideArea.classList.remove('panning'); }
+  }, { passive: true });
+
+  // Touch zones
+  touchZones.addEventListener('click', (e) => {
+    const zone = e.target.closest('.zone');
+    if (!zone) return;
+    if (zone.dataset.dir === 'prev') prev();
+    else next();
+  });
+
+  // Swipe support
+  let touchStartX = 0;
+  let touchStartY = 0;
+  touchZones.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].clientX;
+    touchStartY = e.changedTouches[0].clientY;
+  }, { passive: true });
+
+  touchZones.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) next(); else prev();
+    }
+  }, { passive: true });
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') { prev(); e.preventDefault(); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') { next(); e.preventDefault(); }
+    if (e.key === 'Home') { goTo(1); e.preventDefault(); }
+    if (e.key === 'End') { goTo(totalPages); e.preventDefault(); }
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+    if (e.key === 'Escape' && document.fullscreenElement) document.exitFullscreen();
+  });
+
+  // Fullscreen
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      viewer.requestFullscreen?.() || viewer.webkitRequestFullscreen?.();
+    } else {
+      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+    }
+  }
+
+  fsBtn.addEventListener('click', toggleFullscreen);
+
+  document.addEventListener('fullscreenchange', () => {
+    // Swap icon between expand / compress
+    if (document.fullscreenElement) {
+      fsIcon.innerHTML = '<polyline points="4 14 4 20 10 20"/><polyline points="20 10 20 4 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>';
+    } else {
+      fsIcon.innerHTML = '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+    }
+    renderPage(currentPage);
+  });
+
+  // Resize
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => renderPage(currentPage), 100);
+  });
+
+  // Init
+  async function init() {
+    try {
+      pdfDoc = await pdfjsLib.getDocument(PDF_PATH).promise;
+      totalPages = pdfDoc.numPages;
+      await renderPage(1);
+      loading.classList.add('hidden');
+    } catch (err) {
+      loading.querySelector('.loading-text').textContent = 'Failed to load PDF.';
+      loading.querySelector('.spinner').style.display = 'none';
+      console.error(err);
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>
